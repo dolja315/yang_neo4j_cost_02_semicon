@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>반도체 원가 차이분석 - 데이터 보고서</title>
+<style>
+  :root {
+    --bg: #0f172a; --surface: #1e293b; --surface2: #334155;
+    --border: #475569; --text: #e2e8f0; --text-dim: #94a3b8;
+    --accent: #38bdf8; --accent2: #818cf8; --green: #34d399;
+    --red: #f87171; --amber: #fbbf24; --pink: #f472b6;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Segoe UI',system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
+  .container { max-width:1200px; margin:0 auto; padding:20px; }
+
+  /* Header */
+  .header { text-align:center; padding:48px 20px 32px; border-bottom:1px solid var(--border); margin-bottom:40px; }
+  .header h1 { font-size:2.2rem; font-weight:700; background:linear-gradient(135deg,var(--accent),var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .header .sub { color:var(--text-dim); font-size:1rem; margin-top:8px; }
+  .header .badge { display:inline-block; background:var(--surface2); padding:4px 16px; border-radius:20px; font-size:0.85rem; margin-top:12px; color:var(--amber); border:1px solid var(--amber); }
+
+  /* Section */
+  .section { margin-bottom:48px; }
+  .section-title { font-size:1.5rem; font-weight:700; color:var(--accent); margin-bottom:6px; display:flex; align-items:center; gap:10px; }
+  .section-title .num { background:var(--accent); color:var(--bg); width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.9rem; font-weight:800; }
+  .section-desc { color:var(--text-dim); margin-bottom:20px; font-size:0.95rem; }
+
+  /* Architecture diagram */
+  .arch { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:16px; margin-bottom:24px; }
+  .arch-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; position:relative; overflow:hidden; }
+  .arch-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
+  .arch-card.a::before { background:var(--accent); }
+  .arch-card.b::before { background:var(--accent2); }
+  .arch-card.c::before { background:var(--amber); }
+  .arch-card.d::before { background:var(--green); }
+  .arch-card .label { font-size:0.75rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px; }
+  .arch-card h3 { font-size:1.1rem; margin:4px 0 8px; }
+  .arch-card p { font-size:0.85rem; color:var(--text-dim); }
+  .arch-card .count { font-size:1.8rem; font-weight:700; color:var(--accent); }
+
+  /* Tables */
+  table { width:100%; border-collapse:collapse; margin-bottom:16px; font-size:0.88rem; }
+  th { background:var(--surface2); color:var(--accent); padding:10px 12px; text-align:left; font-weight:600; border-bottom:2px solid var(--border); white-space:nowrap; }
+  td { padding:8px 12px; border-bottom:1px solid rgba(71,85,105,0.5); }
+  tr:hover td { background:rgba(56,189,248,0.05); }
+  .num-cell { text-align:right; font-variant-numeric:tabular-nums; }
+  .highlight { background:rgba(251,191,36,0.12) !important; }
+  .up { color:var(--red); font-weight:600; }
+  .down { color:var(--green); font-weight:600; }
+  .tag { display:inline-block; padding:2px 8px; border-radius:4px; font-size:0.75rem; font-weight:600; }
+  .tag-fe { background:rgba(56,189,248,0.15); color:var(--accent); }
+  .tag-be { background:rgba(129,140,248,0.15); color:var(--accent2); }
+  .tag-fixed { background:rgba(251,191,36,0.15); color:var(--amber); }
+  .tag-var { background:rgba(52,211,153,0.15); color:var(--green); }
+  .tag-mixed { background:rgba(244,114,182,0.15); color:var(--pink); }
+
+  /* Scenario cards */
+  .scenarios { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px; }
+  .scenario { background:var(--surface); border-radius:12px; padding:24px; border-left:4px solid; }
+  .scenario.s1 { border-color:var(--red); }
+  .scenario.s2 { border-color:var(--amber); }
+  .scenario.s3 { border-color:var(--accent); }
+  .scenario h4 { font-size:1rem; margin-bottom:8px; }
+  .scenario .cause { color:var(--text-dim); font-size:0.9rem; margin-bottom:8px; }
+  .scenario .impact { font-size:0.85rem; }
+  .scenario .impact strong { color:var(--accent); }
+
+  /* Charts (SVG) */
+  .chart-wrap { background:var(--surface); border-radius:12px; padding:24px; margin-bottom:16px; }
+  .chart-title { font-size:1rem; font-weight:600; margin-bottom:16px; }
+  svg text { font-family:inherit; }
+
+  /* Verification */
+  .verify { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; }
+  .verify-card { background:var(--surface); border-radius:12px; padding:20px; border:1px solid var(--border); }
+  .verify-card .check { color:var(--green); font-size:1.2rem; }
+  .verify-card .formula { font-family:'Consolas','Courier New',monospace; font-size:0.85rem; color:var(--amber); margin:8px 0; }
+  .verify-card .result { font-size:0.9rem; color:var(--text-dim); }
+
+  /* Flow diagram */
+  .flow { display:flex; align-items:center; justify-content:center; gap:0; flex-wrap:wrap; margin:20px 0; }
+  .flow-step { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 18px; text-align:center; min-width:120px; }
+  .flow-step .time { font-size:0.7rem; color:var(--text-dim); }
+  .flow-step .name { font-size:0.85rem; font-weight:600; }
+  .flow-arrow { color:var(--accent); font-size:1.5rem; padding:0 4px; }
+
+  /* Waterfall chart */
+  .waterfall { display:flex; align-items:flex-end; gap:6px; height:200px; padding:20px 0; }
+  .wf-bar { display:flex; flex-direction:column; align-items:center; flex:1; }
+  .wf-bar .bar { width:100%; border-radius:4px 4px 0 0; min-height:4px; transition:height 0.3s; }
+  .wf-bar .bar.positive { background:linear-gradient(180deg,var(--red),rgba(248,113,113,0.6)); }
+  .wf-bar .bar.negative { background:linear-gradient(180deg,var(--green),rgba(52,211,153,0.6)); }
+  .wf-bar .bar.total { background:linear-gradient(180deg,var(--accent),rgba(56,189,248,0.6)); }
+  .wf-bar .val { font-size:0.75rem; margin-bottom:4px; font-weight:600; }
+  .wf-bar .lbl { font-size:0.65rem; color:var(--text-dim); margin-top:6px; text-align:center; writing-mode:horizontal-tb; }
+
+  /* Summary table */
+  .summary-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:24px; }
+  .summary-item { background:var(--surface); border-radius:10px; padding:16px; text-align:center; }
+  .summary-item .val { font-size:1.6rem; font-weight:700; }
+  .summary-item .lbl { font-size:0.8rem; color:var(--text-dim); margin-top:4px; }
+  .summary-item.hbm .val { color:var(--red); }
+  .summary-item.ddr .val { color:var(--amber); }
+  .summary-item.p5 .val { color:var(--accent); }
+  .summary-item.nand .val { color:var(--green); }
+
+  @media(max-width:768px) {
+    .summary-grid { grid-template-columns:repeat(2,1fr); }
+    .flow { flex-direction:column; }
+    .flow-arrow { transform:rotate(90deg); }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- ============================================================ -->
+<!-- HEADER -->
+<!-- ============================================================ -->
+<div class="header">
+  <h1>반도체 원가 증감 차이분석 시스템</h1>
+  <div class="sub">프로토타입 데이터 보고서 &mdash; PostgreSQL 테이블 &amp; 샘플 데이터 가이드</div>
+  <div class="badge">기간: 2024.08 ~ 2025.01 (6개월) &nbsp;|&nbsp; 총 1,346건</div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 0. 전체 구조 -->
+<!-- ============================================================ -->
+<div class="section">
+  <div class="section-title"><span class="num">0</span> 데이터 아키텍처 4-Layer 구조</div>
+  <div class="section-desc">Oracle(PostgreSQL) DB에 4개 레이어로 데이터가 적재됩니다. 마스터 → SAP 스냅샷 → 이벤트 → 차이 계산 순으로 흐릅니다.</div>
+
+  <div class="arch">
+    <div class="arch-card a">
+      <div class="label">Layer A</div>
+      <h3>마스터 데이터</h3>
+      <p>제품, 공정, 장비, 자재, 원가요소</p>
+      <div class="count">35건</div>
+    </div>
+    <div class="arch-card b">
+      <div class="label">Layer B</div>
+      <h3>SAP 스냅샷</h3>
+      <p>원가결과, 배부율, 배부결과, BOM</p>
+      <div class="count">1,050건</div>
+    </div>
+    <div class="arch-card c">
+      <div class="label">Layer C</div>
+      <h3>소스 이벤트</h3>
+      <p>MES(장비), PLM(설변), 구매(단가)</p>
+      <div class="count">21건</div>
+    </div>
+    <div class="arch-card d">
+      <div class="label">Layer D</div>
+      <h3>차이 계산</h3>
+      <p>Python 엔진이 생성한 분해 결과</p>
+      <div class="count">272건</div>
+    </div>
+  </div>
+
+  <div class="section-desc" style="margin-top:12px;">매월 마감 후 처리 순서:</div>
+  <div class="flow">
+    <div class="flow-step"><div class="time">T+0h</div><div class="name">SAP 원가계산</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="time">T+1h</div><div class="name">스냅샷 추출<br/><small>Layer B</small></div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="time">T+2h</div><div class="name">이벤트 적재<br/><small>Layer C</small></div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="time">T+3h</div><div class="name">차이 계산<br/><small>Layer D</small></div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="time">T+4h</div><div class="name">Neo4j 그래프</div></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step"><div class="time">T+5h</div><div class="name">LLM 해석<br/><small>&amp; 보고서</small></div></div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 1. Layer A: 마스터 데이터 -->
+<!-- ============================================================ -->
+<div class="section">
+  <div class="section-title"><span class="num">1</span> Layer A &mdash; 마스터 데이터 (5개 테이블)</div>
+  <div class="section-desc">시스템의 기준 정보. 제품·공정·장비·자재·원가요소가 서로 관계를 맺습니다.</div>
+
+  <!-- 제품 마스터 -->
+  <h3 style="margin:16px 0 8px; color:var(--accent);">1-1. MST_PRODUCT (제품 마스터) &mdash; 8건</h3>
+  <p style="color:var(--text-dim); font-size:0.88rem; margin-bottom:10px;">4개 제품군 &times; 2개 제품 = 8개. 실제 환경에서는 전공정 ~100개, 후공정 ~800개.</p>
+  <table>
+    <tr><th>제품코드</th><th>제품군</th><th>제품명</th><th>공정구분</th><th>사용</th></tr>
+    <tr><td><b>HBM_001</b></td><td><span class="tag tag-fe">HBM</span></td><td>HBM3E 8Hi</td><td>FE</td><td>Y</td></tr>
+    <tr><td><b>HBM_002</b></td><td><span class="tag tag-fe">HBM</span></td><td>HBM3E 12Hi</td><td>FE</td><td>Y</td></tr>
+    <tr><td><b>DDR5_001</b></td><td><span class="tag tag-var">DDR5</span></td><td>DDR5 16Gb</td><td>FE</td><td>Y</td></tr>
+    <tr><td><b>DDR5_002</b></td><td><span class="tag tag-var">DDR5</span></td><td>DDR5 32Gb</td><td>FE</td><td>Y</td></tr>
+    <tr><td><b>NAND_001</b></td><td><span class="tag tag-mixed">낸드</span></td><td>V-NAND 176L</td><td>FE</td><td>Y</td></tr>
+    <tr><td><b>NAND_002</b></td><td><span class="tag tag-mixed">낸드</span></td><td>V-NAND 236L</td><td>FE</td><td>Y</td></tr>
+    <tr><td><b>P5_001</b></td><td><span class="tag tag-fixed">P5</span></td><td>P5 1Tb</td><td>FE</td><td>Y</td></tr>
+    <tr><td><b>P5_002</b></td><td><span class="tag tag-fixed">P5</span></td><td>P5 2Tb</td><td>FE</td><td>Y</td></tr>
+  </table>
+
+  <!-- 공정 마스터 -->
+  <h3 style="margin:24px 0 8px; color:var(--accent);">1-2. MST_PROCESS (공정 마스터) &mdash; 8건</h3>
+  <p style="color:var(--text-dim); font-size:0.88rem; margin-bottom:10px;">전공정 5개 + 후공정 3개. 배부방식(ALLOC/DIRECT)과 배부기준(ST/BOM/QTY)이 원가 계산 방법을 결정합니다.</p>
+  <table>
+    <tr><th>공정코드</th><th>공정명</th><th>유형</th><th>공정군</th><th>배부방식</th><th>배부기준</th></tr>
+    <tr><td><b>FE_01</b></td><td>전공정_식각</td><td><span class="tag tag-fe">FE</span></td><td>ETCH</td><td>ALLOC</td><td>ST(설비시간)</td></tr>
+    <tr><td><b>FE_02</b></td><td>전공정_증착</td><td><span class="tag tag-fe">FE</span></td><td>DEP</td><td>ALLOC</td><td>ST</td></tr>
+    <tr><td><b>FE_03</b></td><td>전공정_포토</td><td><span class="tag tag-fe">FE</span></td><td>PHOTO</td><td>ALLOC</td><td>ST</td></tr>
+    <tr><td><b>FE_04</b></td><td>전공정_확산</td><td><span class="tag tag-fe">FE</span></td><td>DIFF</td><td>ALLOC</td><td>ST</td></tr>
+    <tr><td><b>FE_05</b></td><td>전공정_CMP</td><td><span class="tag tag-fe">FE</span></td><td>CMP</td><td>ALLOC</td><td>ST</td></tr>
+    <tr class="highlight"><td><b>BE_01</b></td><td>후공정_조립</td><td><span class="tag tag-be">BE</span></td><td>ASSY</td><td><b>DIRECT</b></td><td><b>BOM</b></td></tr>
+    <tr><td><b>BE_02</b></td><td>후공정_가공</td><td><span class="tag tag-be">BE</span></td><td>ASSY</td><td>ALLOC</td><td>ST</td></tr>
+    <tr><td><b>BE_03</b></td><td>후공정_테스트</td><td><span class="tag tag-be">BE</span></td><td>TEST</td><td>ALLOC</td><td>QTY</td></tr>
+  </table>
+  <p style="color:var(--text-dim); font-size:0.82rem;">* <b>ALLOC</b>: 공통비용을 배부기준(ST 등)으로 제품에 안분 &nbsp;|&nbsp; <b>DIRECT</b>: BOM 기반 직접 집계 (재료비)</p>
+
+  <!-- 장비/자재/원가요소 -->
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:24px;">
+    <div>
+      <h3 style="margin-bottom:8px; color:var(--accent);">1-3. MST_EQUIPMENT (장비) &mdash; 7대</h3>
+      <table>
+        <tr><th>장비코드</th><th>장비명</th><th>공정</th><th>FAB</th></tr>
+        <tr><td>ETCH_A01</td><td>Etcher #01</td><td>FE_01</td><td>FAB3</td></tr>
+        <tr><td>ETCH_A02</td><td>Etcher #02</td><td>FE_01</td><td>FAB3</td></tr>
+        <tr><td>DEP_B01</td><td>CVD #01</td><td>FE_02</td><td>FAB3</td></tr>
+        <tr><td>DEP_B02</td><td>CVD #02</td><td>FE_02</td><td>FAB3</td></tr>
+        <tr><td>PHOTO_C01</td><td>Scanner #01</td><td>FE_03</td><td>FAB3</td></tr>
+        <tr><td>ASSY_D01</td><td>Die Bonder #01</td><td>BE_01</td><td>PKG1</td></tr>
+        <tr><td>TEST_E01</td><td>Tester #01</td><td>BE_03</td><td>PKG1</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3 style="margin-bottom:8px; color:var(--accent);">1-4. MST_MATERIAL (자재) &mdash; 5종</h3>
+      <table>
+        <tr><th>자재코드</th><th>자재명</th><th>유형</th><th>공정</th></tr>
+        <tr class="highlight"><td>MAT_X01</td><td>Substrate_A</td><td>SUBSTRATE</td><td>BE</td></tr>
+        <tr><td>MAT_X02</td><td>Wire_B</td><td>WIRE</td><td>BE</td></tr>
+        <tr><td>MAT_X03</td><td>Mold_Compound</td><td>MOLD</td><td>BE</td></tr>
+        <tr><td>MAT_G01</td><td>Etch_Gas_1</td><td>GAS</td><td>FE</td></tr>
+        <tr><td>MAT_G02</td><td>Dep_Gas_1</td><td>GAS</td><td>FE</td></tr>
+      </table>
+
+      <h3 style="margin:24px 0 8px; color:var(--accent);">1-5. MST_COST_ELEMENT (원가요소) &mdash; 7종</h3>
+      <table>
+        <tr><th>코드</th><th>원가요소명</th><th>그룹</th></tr>
+        <tr><td>CE_DEP</td><td>감가상각비</td><td><span class="tag tag-fixed">FIXED</span></td></tr>
+        <tr><td>CE_LAB</td><td>인건비</td><td><span class="tag tag-fixed">FIXED</span></td></tr>
+        <tr><td>CE_PWR</td><td>전력비</td><td><span class="tag tag-var">VARIABLE</span></td></tr>
+        <tr><td>CE_MAT</td><td>재료비</td><td><span class="tag tag-var">VARIABLE</span></td></tr>
+        <tr><td>CE_MNT</td><td>수선유지비</td><td><span class="tag tag-var">VARIABLE</span></td></tr>
+        <tr><td>CE_GAS</td><td>기료비</td><td><span class="tag tag-var">VARIABLE</span></td></tr>
+        <tr><td>CE_OTH</td><td>기타경비</td><td><span class="tag tag-mixed">MIXED</span></td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 2. 시나리오 -->
+<!-- ============================================================ -->
+<div class="section">
+  <div class="section-title"><span class="num">2</span> 데이터에 녹아있는 3대 시나리오</div>
+  <div class="section-desc">프로토타입 데이터는 아래 3개 시나리오가 2025년 1월(202501)에 동시에 발생하도록 설계되었습니다.</div>
+
+  <div class="scenarios">
+    <div class="scenario s1">
+      <h4 style="color:var(--red);">시나리오 1 &mdash; 전공정 배부율 상승 (일시적)</h4>
+      <div class="cause"><b>원인:</b> 식각 공정(FE_01) 장비 가동률 하락 (ETCH_A01: 85%&rarr;78%)</div>
+      <div class="impact">
+        <b>영향:</b> 총배부기준량(ST) 100&rarr;93만h로 감소<br>
+        배부율 50,000 &rarr; 55,376 <strong>(+10.8%)</strong><br>
+        HBM, DDR5, 낸드 모든 제품 동반 상승
+      </div>
+      <p style="margin-top:8px; color:var(--amber); font-size:0.85rem;"><b>판정:</b> 일시적 &mdash; 신규라인 초기 문제, 2~3개월 내 정상화</p>
+    </div>
+    <div class="scenario s2">
+      <h4 style="color:var(--amber);">시나리오 2 &mdash; 후공정 재료비 상승 (구조적)</h4>
+      <div class="cause"><b>원인:</b> Substrate_A(MAT_X01) 단가 1,200 &rarr; 1,350 <b>(+12.5%)</b></div>
+      <div class="impact">
+        <b>영향:</b> HBM 제품군에 집중 (Substrate 사용량 多)<br>
+        HBM_001 PRICE_VAR = <strong>+1.86억</strong><br>
+        Wire_B 사용량 변경 &rarr; USAGE_VAR = +0.80억
+      </div>
+      <p style="margin-top:8px; color:var(--amber); font-size:0.85rem;"><b>판정:</b> 구조적 &mdash; 원자재 시황에 따른 지속적 상승</p>
+    </div>
+    <div class="scenario s3">
+      <h4 style="color:var(--accent);">시나리오 3 &mdash; 생산 Mix 변동 (전략적)</h4>
+      <div class="cause"><b>원인:</b> HBM 수요 확대에 따른 전략적 Mix 변경</div>
+      <div class="impact">
+        <b>영향:</b> HBM 비중 18%&rarr;21% 확대<br>
+        낸드 비중 19%&rarr;16% 축소<br>
+        배부량 차이(QTY_VAR)로 나타남: <strong>HBM +7.5억 / 낸드 -22.5억</strong>
+      </div>
+      <p style="margin-top:8px; color:var(--amber); font-size:0.85rem;"><b>판정:</b> 의도된 변동 &mdash; 전략적 제품 Mix 변경</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 3. Layer B: SAP 스냅샷 -->
+<!-- ============================================================ -->
+<div class="section">
+  <div class="section-title"><span class="num">3</span> Layer B &mdash; SAP 스냅샷 데이터 (4개 테이블)</div>
+  <div class="section-desc">매월 SAP에서 추출한 원가 계산 결과. 6개월간의 추이를 통해 시나리오 변화를 확인합니다.</div>
+
+  <!-- 배부율 추이 -->
+  <h3 style="margin:16px 0 8px; color:var(--accent);">3-1. SNP_ALLOC_RATE (배부율 스냅샷) &mdash; 54건</h3>
+  <p style="color:var(--text-dim); font-size:0.88rem; margin-bottom:10px;">
+    공정별 배부율(총비용 &divide; 총배부기준량) 추이. 배부율 = 총비용(억원) &times; 10,000 &divide; 총배부기준량.
+  </p>
+  <div class="chart-wrap">
+    <div class="chart-title">FE_01 &times; CE_DEP 배부율 추이 (시나리오 1: 202501 급등)</div>
+    <svg width="100%" height="220" viewBox="0 0 600 220">
+      <!-- Grid -->
+      <line x1="60" y1="20" x2="60" y2="180" stroke="#475569" stroke-width="1"/>
+      <line x1="60" y1="180" x2="580" y2="180" stroke="#475569" stroke-width="1"/>
+      <!-- Y labels -->
+      <text x="55" y="25" fill="#94a3b8" font-size="11" text-anchor="end">56,000</text>
+      <text x="55" y="70" fill="#94a3b8" font-size="11" text-anchor="end">53,000</text>
+      <text x="55" y="115" fill="#94a3b8" font-size="11" text-anchor="end">50,000</text>
+      <text x="55" y="160" fill="#94a3b8" font-size="11" text-anchor="end">47,000</text>
+      <line x1="60" y1="25" x2="580" y2="25" stroke="#334155" stroke-width="0.5" stroke-dasharray="4"/>
+      <line x1="60" y1="70" x2="580" y2="70" stroke="#334155" stroke-width="0.5" stroke-dasharray="4"/>
+      <line x1="60" y1="115" x2="580" y2="115" stroke="#334155" stroke-width="0.5" stroke-dasharray="4"/>
+      <line x1="60" y1="160" x2="580" y2="160" stroke="#334155" stroke-width="0.5" stroke-dasharray="4"/>
+      <!-- Data: 49000, 49010, 49800, 50505, 50000, 55376 -->
+      <!-- Scale: 47000=180, 56000=20 => y = 180 - (val-47000)/9000 * 160 -->
+      <polyline fill="none" stroke="#38bdf8" stroke-width="2.5"
+        points="145,144.4 232,144.2 319,130.1 406,117.5 493,126.7 580,31.1"/>
+      <circle cx="145" cy="144.4" r="4" fill="#38bdf8"/>
+      <circle cx="232" cy="144.2" r="4" fill="#38bdf8"/>
+      <circle cx="319" cy="130.1" r="4" fill="#38bdf8"/>
+      <circle cx="406" cy="117.5" r="4" fill="#38bdf8"/>
+      <circle cx="493" cy="126.7" r="4" fill="#38bdf8"/>
+      <circle cx="580" cy="31.1" r="6" fill="#f87171" stroke="#fff" stroke-width="2"/>
+      <!-- Values -->
+      <text x="145" y="139" fill="#94a3b8" font-size="10" text-anchor="middle">49,000</text>
+      <text x="232" y="139" fill="#94a3b8" font-size="10" text-anchor="middle">49,010</text>
+      <text x="319" y="125" fill="#94a3b8" font-size="10" text-anchor="middle">49,800</text>
+      <text x="406" y="112" fill="#94a3b8" font-size="10" text-anchor="middle">50,505</text>
+      <text x="493" y="121" fill="#94a3b8" font-size="10" text-anchor="middle">50,000</text>
+      <text x="580" y="26" fill="#f87171" font-size="11" font-weight="bold" text-anchor="middle">55,376</text>
+      <text x="555" y="55" fill="#f87171" font-size="10">+10.8%</text>
+      <!-- X labels -->
+      <text x="145" y="200" fill="#94a3b8" font-size="11" text-anchor="middle">2024.08</text>
+      <text x="232" y="200" fill="#94a3b8" font-size="11" text-anchor="middle">09</text>
+      <text x="319" y="200" fill="#94a3b8" font-size="11" text-anchor="middle">10</text>
+      <text x="406" y="200" fill="#94a3b8" font-size="11" text-anchor="middle">11</text>
+      <text x="493" y="200" fill="#94a3b8" font-size="11" text-anchor="middle">12</text>
+      <text x="580" y="200" fill="#f87171" font-size="11" font-weight="bold" text-anchor="middle">2025.01</text>
+    </svg>
+  </div>
+
+  <table>
+    <tr><th>기준월</th><th>공정</th><th>원가요소</th><th class="num-cell">총비용(억)</th><th class="num-cell">총ST(만h)</th><th>단위</th><th class="num-cell">배부율</th><th class="num-cell">전월비</th></tr>
+    <tr><td>202408</td><td>FE_01</td><td>CE_DEP</td><td class="num-cell">490</td><td class="num-cell">100</td><td>만h</td><td class="num-cell">49,000</td><td class="num-cell">-</td></tr>
+    <tr><td>202409</td><td>FE_01</td><td>CE_DEP</td><td class="num-cell">495</td><td class="num-cell">101</td><td>만h</td><td class="num-cell">49,010</td><td class="num-cell">+0.0%</td></tr>
+    <tr><td>202410</td><td>FE_01</td><td>CE_DEP</td><td class="num-cell">498</td><td class="num-cell">100</td><td>만h</td><td class="num-cell">49,800</td><td class="num-cell">+1.6%</td></tr>
+    <tr><td>202411</td><td>FE_01</td><td>CE_DEP</td><td class="num-cell">500</td><td class="num-cell">99</td><td>만h</td><td class="num-cell">50,505</td><td class="num-cell">+1.4%</td></tr>
+    <tr><td>202412</td><td>FE_01</td><td>CE_DEP</td><td class="num-cell">500</td><td class="num-cell">100</td><td>만h</td><td class="num-cell">50,000</td><td class="num-cell">-1.0%</td></tr>
+    <tr class="highlight"><td><b>202501</b></td><td>FE_01</td><td>CE_DEP</td><td class="num-cell"><b>515</b></td><td class="num-cell"><b class="up">93</b></td><td>만h</td><td class="num-cell"><b class="up">55,376</b></td><td class="num-cell"><b class="up">+10.8%</b></td></tr>
+  </table>
+
+  <!-- 배부결과 -->
+  <h3 style="margin:24px 0 8px; color:var(--accent);">3-2. SNP_ALLOC_RESULT (배부결과) &mdash; 432건</h3>
+  <p style="color:var(--text-dim); font-size:0.88rem; margin-bottom:10px;">
+    제품별 배부량(ST)과 배부액. <b>배부액 = 배부량 &times; 배부율 / 10,000</b>. 시나리오 3(Mix 변동)이 여기에 나타납니다.
+  </p>
+  <table>
+    <tr><th>제품</th><th colspan="2" style="text-align:center;">202412 (전월)</th><th colspan="2" style="text-align:center;">202501 (당월)</th><th class="num-cell">배부량 변동</th><th class="num-cell">배부액 변동</th></tr>
+    <tr><th></th><th class="num-cell">배부량(만h)</th><th class="num-cell">배부액(억)</th><th class="num-cell">배부량(만h)</th><th class="num-cell">배부액(억)</th><th></th><th></th></tr>
+    <tr class="highlight"><td><b>HBM_001</b></td><td class="num-cell">19.0</td><td class="num-cell">95.00</td><td class="num-cell"><b>19.5</b></td><td class="num-cell"><b>107.98</b></td><td class="num-cell up">+0.5</td><td class="num-cell up">+12.98</td></tr>
+    <tr><td>DDR5_001</td><td class="num-cell">20.0</td><td class="num-cell">100.00</td><td class="num-cell">18.5</td><td class="num-cell">102.45</td><td class="num-cell down">-1.5</td><td class="num-cell up">+2.45</td></tr>
+    <tr><td>NAND_001</td><td class="num-cell">18.0</td><td class="num-cell">90.00</td><td class="num-cell"><b class="down">15.0</b></td><td class="num-cell">83.06</td><td class="num-cell down">-3.0</td><td class="num-cell down">-6.94</td></tr>
+    <tr><td colspan="7" style="color:var(--text-dim); font-size:0.82rem; padding:4px 12px;">* FE_01 &times; CE_DEP 기준. 총 8개 제품 &times; 9개 (공정&times;원가요소) &times; 6개월 = 432건</td></tr>
+  </table>
+
+  <!-- BOM -->
+  <h3 style="margin:24px 0 8px; color:var(--accent);">3-3. SNP_BOM (BOM 스냅샷) &mdash; 84건</h3>
+  <p style="color:var(--text-dim); font-size:0.88rem; margin-bottom:10px;">
+    후공정 제품별 BOM. <b>재료비 = 표준사용량 &times; 단가 / 10,000</b>. 시나리오 2(단가 인상)가 여기에 나타납니다.
+  </p>
+  <table>
+    <tr><th>기준월</th><th>제품</th><th>자재</th><th class="num-cell">표준사용량</th><th class="num-cell">단가</th><th class="num-cell">재료비(억)</th><th>비고</th></tr>
+    <tr><td>202412</td><td>HBM_001</td><td>MAT_X01</td><td class="num-cell">100</td><td class="num-cell">1,200</td><td class="num-cell">12.00</td><td></td></tr>
+    <tr class="highlight"><td><b>202501</b></td><td>HBM_001</td><td>MAT_X01</td><td class="num-cell">100</td><td class="num-cell"><b class="up">1,350</b></td><td class="num-cell"><b class="up">13.50</b></td><td class="up">단가 +12.5%</td></tr>
+    <tr><td>202412</td><td>HBM_001</td><td>MAT_X02</td><td class="num-cell">200</td><td class="num-cell">800</td><td class="num-cell">16.00</td><td></td></tr>
+    <tr class="highlight"><td><b>202501</b></td><td>HBM_001</td><td>MAT_X02</td><td class="num-cell"><b class="up">210</b></td><td class="num-cell"><b>810</b></td><td class="num-cell"><b class="up">17.01</b></td><td class="up">사용량+5%, 단가+1.3%</td></tr>
+    <tr><td>202412</td><td>HBM_001</td><td>MAT_X03</td><td class="num-cell">150</td><td class="num-cell">500</td><td class="num-cell">7.50</td><td></td></tr>
+    <tr class="highlight"><td><b>202501</b></td><td>HBM_001</td><td>MAT_X03</td><td class="num-cell">150</td><td class="num-cell"><b>510</b></td><td class="num-cell"><b>7.65</b></td><td>단가 +2.0%</td></tr>
+    <tr style="background:rgba(56,189,248,0.08);"><td colspan="5" style="text-align:right; font-weight:700;">HBM_001 합계</td><td class="num-cell" style="font-weight:700;">35.50 &rarr; 38.16</td><td class="up" style="font-weight:700;">+2.66억 (+7.5%)</td></tr>
+  </table>
+  <p style="color:var(--text-dim); font-size:0.82rem;">* 14개 (제품&times;자재) 조합 &times; 6개월 = 84건. 8개 제품 모두 6개월 추이 보유.</p>
+
+  <h3 style="margin:24px 0 8px; color:var(--accent);">3-4. SNP_COST_RESULT (원가결과) &mdash; 480건</h3>
+  <p style="color:var(--text-dim); font-size:0.88rem; margin-bottom:10px;">
+    SAP 원가계산 최종 결과. 배부 공정은 배부액과 동일하고, BE_01(재료비)은 BOM 합계와 동일합니다.
+  </p>
+</div>
+
+<!-- ============================================================ -->
+<!-- 4. Layer C: 이벤트 -->
+<!-- ============================================================ -->
+<div class="section">
+  <div class="section-title"><span class="num">4</span> Layer C &mdash; 소스시스템 이벤트 (3개 테이블)</div>
+  <div class="section-desc">원가 변동의 "원인"을 설명하는 이벤트 데이터. LLM이 이 데이터를 참조해 해석을 생성합니다.</div>
+
+  <h3 style="margin:16px 0 8px; color:var(--accent);">4-1. EVT_MES (MES 이벤트) &mdash; 15건</h3>
+  <table>
+    <tr><th>기준월</th><th>장비</th><th>지표</th><th class="num-cell">전월</th><th class="num-cell">당월</th><th class="num-cell">변동</th><th>해석</th></tr>
+    <tr><td>202412</td><td>ETCH_A01</td><td>UTIL(가동률)</td><td class="num-cell">85.0%</td><td class="num-cell">85.0%</td><td class="num-cell">0.0%p</td><td style="color:var(--text-dim);">안정</td></tr>
+    <tr class="highlight"><td><b>202501</b></td><td><b>ETCH_A01</b></td><td>UTIL(가동률)</td><td class="num-cell">85.0%</td><td class="num-cell"><b class="up">78.0%</b></td><td class="num-cell"><b class="up">-7.0%p</b></td><td class="up">신규라인 초기 &mdash; 시나리오1 원인</td></tr>
+    <tr class="highlight"><td><b>202501</b></td><td><b>ETCH_A02</b></td><td>UTIL(가동률)</td><td class="num-cell">88.0%</td><td class="num-cell"><b>86.0%</b></td><td class="num-cell"><b class="up">-2.0%p</b></td><td class="up">연동 하락</td></tr>
+    <tr><td>202501</td><td>DEP_B01</td><td>YIELD(수율)</td><td class="num-cell">94.0%</td><td class="num-cell">93.5%</td><td class="num-cell down">-0.5%p</td><td style="color:var(--text-dim);">소폭</td></tr>
+  </table>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:24px;">
+    <div>
+      <h3 style="margin-bottom:8px; color:var(--accent);">4-2. EVT_PLM (PLM 이벤트) &mdash; 3건</h3>
+      <table>
+        <tr><th>이벤트</th><th>제품</th><th>유형</th><th>내용</th></tr>
+        <tr><td>PLM_001</td><td>HBM_001</td><td>BOM_CHG</td><td>Wire_B 사용량 200&rarr;210</td></tr>
+        <tr><td>PLM_002</td><td>HBM_002</td><td>SPEC_CHG</td><td>패키지 두께 0.8&rarr;0.75mm</td></tr>
+        <tr><td>PLM_003</td><td>HBM_002</td><td>BOM_CHG</td><td>Wire_B 사용량 180&rarr;185</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3 style="margin-bottom:8px; color:var(--accent);">4-3. EVT_PURCHASE (구매 이벤트) &mdash; 3건</h3>
+      <table>
+        <tr><th>이벤트</th><th>자재</th><th>유형</th><th class="num-cell">변동률</th><th>사유</th></tr>
+        <tr class="highlight"><td>PUR_001</td><td>MAT_X01</td><td>PRICE_CHG</td><td class="num-cell up">+12.5%</td><td>원자재 가격 상승</td></tr>
+        <tr><td>PUR_002</td><td>MAT_X02</td><td>PRICE_CHG</td><td class="num-cell">+1.3%</td><td>환율 변동</td></tr>
+        <tr><td>PUR_003</td><td>MAT_X03</td><td>PRICE_CHG</td><td class="num-cell">+2.0%</td><td>원자재 소폭 인상</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 5. Layer D: 차이 분석 -->
+<!-- ============================================================ -->
+<div class="section">
+  <div class="section-title"><span class="num">5</span> Layer D &mdash; 차이 계산 결과 (272건)</div>
+  <div class="section-desc">Python 엔진이 202501 vs 202412 데이터를 분해한 결과. 원가 변동을 <b>"왜 올랐는가?"</b>로 분해합니다.</div>
+
+  <!-- 제품군별 요약 -->
+  <h3 style="margin:16px 0 12px; color:var(--accent);">제품군별 총 원가 변동 (202501 vs 202412)</h3>
+  <div class="summary-grid">
+    <div class="summary-item hbm"><div class="val">+119.5억</div><div class="lbl">HBM (2개 제품)</div></div>
+    <div class="summary-item ddr"><div class="val">+28.5억</div><div class="lbl">DDR5 (2개 제품)</div></div>
+    <div class="summary-item p5"><div class="val">+23.3억</div><div class="lbl">P5 (2개 제품)</div></div>
+    <div class="summary-item nand"><div class="val">-6.2억</div><div class="lbl">낸드 (2개 제품)</div></div>
+  </div>
+
+  <!-- 차이 분해 공식 -->
+  <div style="background:var(--surface); border-radius:12px; padding:24px; margin-bottom:24px; border:1px solid var(--border);">
+    <h4 style="color:var(--amber); margin-bottom:12px;">차이 분해 공식</h4>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+      <div>
+        <p style="color:var(--accent); font-weight:600; margin-bottom:6px;">전공정 (FE) + 후공정 가공비 (BE_02, BE_03)</p>
+        <div style="font-family:Consolas,monospace; font-size:0.9rem; line-height:1.8; color:var(--text);">
+          <b>배부율 차이</b> = (R<sub>1</sub> - R<sub>0</sub>) &times; Q<sub>1</sub> / 10,000<br>
+          <b>배부량 차이</b> = R<sub>0</sub> &times; (Q<sub>1</sub> - Q<sub>0</sub>) / 10,000<br>
+          <span style="color:var(--text-dim);">── 배부율 세부 분해 ──</span><br>
+          <b>총비용 효과</b> = (C<sub>1</sub> - C<sub>0</sub>) &times; Q<sub>1</sub> / B<sub>0</sub><br>
+          <b>총배부기준 효과</b> = 배부율차이 - 총비용효과
+        </div>
+      </div>
+      <div>
+        <p style="color:var(--accent); font-weight:600; margin-bottom:6px;">후공정 재료비 (BE_01)</p>
+        <div style="font-family:Consolas,monospace; font-size:0.9rem; line-height:1.8; color:var(--text);">
+          <b>단가 차이</b> = &Sigma;(P<sub>1</sub> - P<sub>0</sub>) &times; Q<sub>1</sub> / 10,000<br>
+          <b>사용량 차이</b> = &Sigma; P<sub>0</sub> &times; (Q<sub>1</sub> - Q<sub>0</sub>) / 10,000
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HBM_001 상세 -->
+  <h3 style="margin:16px 0 8px; color:var(--accent);">HBM_001 차이 분석 상세 (대표 제품)</h3>
+  <table>
+    <tr><th>공정</th><th>원가요소</th><th>차이유형</th><th class="num-cell">차이금액(억)</th><th class="num-cell">차이율</th><th class="num-cell">전월(억)</th><th class="num-cell">당월(억)</th><th>의미</th></tr>
+    <tr class="highlight"><td rowspan="4">FE_01<br/><small>식각</small></td><td rowspan="4">CE_DEP<br/><small>감가상각</small></td>
+        <td><b>RATE_VAR</b></td><td class="num-cell up">+10.48</td><td class="num-cell up">+11.0%</td><td class="num-cell">95.00</td><td class="num-cell">107.98</td><td>배부율 상승 효과</td></tr>
+    <tr class="highlight"><td>&nbsp;&nbsp;RATE_COST</td><td class="num-cell up">+2.92</td><td class="num-cell">+3.1%</td><td class="num-cell" colspan="2"></td><td style="color:var(--text-dim);">총비용 증가(500&rarr;515) 탓</td></tr>
+    <tr class="highlight"><td>&nbsp;&nbsp;RATE_BASE</td><td class="num-cell up">+7.56</td><td class="num-cell">+8.0%</td><td class="num-cell" colspan="2"></td><td style="color:var(--text-dim);">총ST 감소(100&rarr;93) 탓 <b>&#x2190; 주범</b></td></tr>
+    <tr class="highlight"><td><b>QTY_VAR</b></td><td class="num-cell up">+2.50</td><td class="num-cell">+2.6%</td><td class="num-cell" colspan="2"></td><td>HBM 배부량 증가(19&rarr;19.5)</td></tr>
+
+    <tr><td>FE_01</td><td>CE_LAB</td><td>RATE_VAR</td><td class="num-cell up">+3.77</td><td class="num-cell">+9.9%</td><td class="num-cell">38.00</td><td class="num-cell">42.77</td><td>인건비도 동반 상승</td></tr>
+    <tr><td>FE_02</td><td>CE_DEP</td><td>RATE_VAR</td><td class="num-cell up">+2.78</td><td class="num-cell">+4.9%</td><td class="num-cell">56.25</td><td class="num-cell">62.78</td><td>증착 공정</td></tr>
+
+    <tr style="background:rgba(251,191,36,0.08);"><td rowspan="2">BE_01<br/><small>재료비</small></td><td rowspan="2">CE_MAT</td>
+        <td><b>PRICE_VAR</b></td><td class="num-cell up">+1.86</td><td class="num-cell">+5.2%</td><td class="num-cell">35.50</td><td class="num-cell">38.16</td><td>자재 단가 인상 (시나리오2)</td></tr>
+    <tr style="background:rgba(251,191,36,0.08);"><td><b>USAGE_VAR</b></td><td class="num-cell up">+0.80</td><td class="num-cell">+2.3%</td><td class="num-cell" colspan="2"></td><td>Wire_B 사용량 변경 (PLM)</td></tr>
+
+    <tr><td>BE_02</td><td>CE_DEP</td><td>RATE_VAR</td><td class="num-cell up">+1.04</td><td class="num-cell">+3.5%</td><td class="num-cell">29.45</td><td class="num-cell">32.04</td><td>후공정 가공비</td></tr>
+  </table>
+
+  <!-- Waterfall -->
+  <div class="chart-wrap" style="margin-top:24px;">
+    <div class="chart-title">HBM_001 FE_01&times;CE_DEP 차이 분해 (Waterfall)</div>
+    <div style="display:flex; align-items:flex-end; gap:12px; height:180px; padding:10px 20px 0;">
+      <div style="flex:1; text-align:center;">
+        <div style="font-size:0.8rem; font-weight:600; margin-bottom:4px;">95.00</div>
+        <div style="height:130px; background:linear-gradient(180deg,#38bdf8,rgba(56,189,248,0.5)); border-radius:4px 4px 0 0;"></div>
+        <div style="font-size:0.75rem; color:var(--text-dim); margin-top:6px;">전월</div>
+      </div>
+      <div style="flex:1; text-align:center;">
+        <div style="font-size:0.8rem; font-weight:600; color:var(--red); margin-bottom:4px;">+2.92</div>
+        <div style="height:26px; background:linear-gradient(180deg,#f87171,rgba(248,113,113,0.5)); border-radius:4px; margin-top:104px;"></div>
+        <div style="font-size:0.7rem; color:var(--text-dim); margin-top:6px;">총비용<br/>효과</div>
+      </div>
+      <div style="flex:1; text-align:center;">
+        <div style="font-size:0.8rem; font-weight:600; color:var(--red); margin-bottom:4px;">+7.56</div>
+        <div style="height:65px; background:linear-gradient(180deg,#f87171,rgba(248,113,113,0.5)); border-radius:4px; margin-top:65px;"></div>
+        <div style="font-size:0.7rem; color:var(--text-dim); margin-top:6px;">총배부기준<br/>효과 &#x1F525;</div>
+      </div>
+      <div style="flex:1; text-align:center;">
+        <div style="font-size:0.8rem; font-weight:600; color:var(--red); margin-bottom:4px;">+2.50</div>
+        <div style="height:22px; background:linear-gradient(180deg,#fbbf24,rgba(251,191,36,0.5)); border-radius:4px; margin-top:108px;"></div>
+        <div style="font-size:0.7rem; color:var(--text-dim); margin-top:6px;">배부량<br/>차이</div>
+      </div>
+      <div style="flex:1; text-align:center;">
+        <div style="font-size:0.8rem; font-weight:700; margin-bottom:4px;">107.98</div>
+        <div style="height:148px; background:linear-gradient(180deg,#818cf8,rgba(129,140,248,0.5)); border-radius:4px 4px 0 0;"></div>
+        <div style="font-size:0.75rem; color:var(--text-dim); margin-top:6px;">당월</div>
+      </div>
+    </div>
+    <div style="text-align:center; color:var(--text-dim); font-size:0.8rem; margin-top:12px;">
+      전월 95.00 + 총비용효과 2.92 + 총배부기준효과 7.56 + 배부량차이 2.50 = <b style="color:var(--accent);">당월 107.98</b>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 6. 정합성 검증 -->
+<!-- ============================================================ -->
+<div class="section">
+  <div class="section-title"><span class="num">6</span> 데이터 정합성 검증</div>
+  <div class="section-desc">모든 계산이 수학적으로 정확한지 검증한 결과입니다.</div>
+
+  <div class="verify">
+    <div class="verify-card">
+      <div class="check">&#10003; PASS</div>
+      <h4 style="margin:6px 0;">전공정 차이 분해 합산</h4>
+      <div class="formula">RATE_VAR + QTY_VAR = 총 차이</div>
+      <div class="result">10.48 + 2.50 = <b>12.98</b> = (107.98 - 95.00) &#10003;</div>
+    </div>
+    <div class="verify-card">
+      <div class="check">&#10003; PASS</div>
+      <h4 style="margin:6px 0;">배부율 세부 분해</h4>
+      <div class="formula">RATE_COST + RATE_BASE = RATE_VAR</div>
+      <div class="result">2.92 + 7.56 = <b>10.48</b> &#10003;</div>
+    </div>
+    <div class="verify-card">
+      <div class="check">&#10003; PASS</div>
+      <h4 style="margin:6px 0;">재료비 차이 분해 합산</h4>
+      <div class="formula">PRICE_VAR + USAGE_VAR = 총 차이</div>
+      <div class="result">1.86 + 0.80 = <b>2.66</b> = (38.16 - 35.50) &#10003;</div>
+    </div>
+    <div class="verify-card">
+      <div class="check">&#10003; PASS</div>
+      <h4 style="margin:6px 0;">배부액 = 배부량 &times; 배부율</h4>
+      <div class="formula">alloc_amt = alloc_qty &times; rate / 10,000</div>
+      <div class="result">19.5 &times; 55,376.34 / 10,000 = <b>107.98</b> &#10003;<br/>8개 제품 모두 오차 0.00</div>
+    </div>
+    <div class="verify-card">
+      <div class="check">&#10003; PASS</div>
+      <h4 style="margin:6px 0;">배부량 합계 = 총배부기준량</h4>
+      <div class="formula">&Sigma;(product alloc_qty) = total_base</div>
+      <div class="result">19.5+16+18.5+9.5+15+5.5+6+3 = <b>93.0</b> = total_base &#10003;</div>
+    </div>
+    <div class="verify-card">
+      <div class="check">&#10003; PASS</div>
+      <h4 style="margin:6px 0;">이벤트-원가 시점 매칭</h4>
+      <div class="formula">Event date &#8838; Cost period</div>
+      <div class="result">PUR_001(MAT_X01 +12.5%) &#8596; BOM 단가 1,200&rarr;1,350 &#10003;<br/>
+        ETCH_A01 UTIL -7%p &#8596; FE_01 TB 100&rarr;93 &#10003;</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 7. 테이블 관계도 -->
+<!-- ============================================================ -->
+<div class="section">
+  <div class="section-title"><span class="num">7</span> 테이블 관계 요약 (ER 다이어그램)</div>
+  <div class="chart-wrap">
+    <svg width="100%" height="420" viewBox="0 0 800 420">
+      <!-- Layer A boxes -->
+      <rect x="10" y="10" width="140" height="50" rx="8" fill="#1e3a5f" stroke="#38bdf8" stroke-width="1.5"/>
+      <text x="80" y="30" fill="#38bdf8" font-size="11" font-weight="bold" text-anchor="middle">MST_PRODUCT</text>
+      <text x="80" y="45" fill="#94a3b8" font-size="9" text-anchor="middle">제품 (8건)</text>
+
+      <rect x="170" y="10" width="140" height="50" rx="8" fill="#1e3a5f" stroke="#38bdf8" stroke-width="1.5"/>
+      <text x="240" y="30" fill="#38bdf8" font-size="11" font-weight="bold" text-anchor="middle">MST_PROCESS</text>
+      <text x="240" y="45" fill="#94a3b8" font-size="9" text-anchor="middle">공정 (8건)</text>
+
+      <rect x="330" y="10" width="140" height="50" rx="8" fill="#1e3a5f" stroke="#38bdf8" stroke-width="1.5"/>
+      <text x="400" y="30" fill="#38bdf8" font-size="11" font-weight="bold" text-anchor="middle">MST_EQUIPMENT</text>
+      <text x="400" y="45" fill="#94a3b8" font-size="9" text-anchor="middle">장비 (7건)</text>
+
+      <rect x="490" y="10" width="140" height="50" rx="8" fill="#1e3a5f" stroke="#38bdf8" stroke-width="1.5"/>
+      <text x="560" y="30" fill="#38bdf8" font-size="11" font-weight="bold" text-anchor="middle">MST_MATERIAL</text>
+      <text x="560" y="45" fill="#94a3b8" font-size="9" text-anchor="middle">자재 (5건)</text>
+
+      <rect x="650" y="10" width="140" height="50" rx="8" fill="#1e3a5f" stroke="#38bdf8" stroke-width="1.5"/>
+      <text x="720" y="30" fill="#38bdf8" font-size="11" font-weight="bold" text-anchor="middle">MST_COST_ELEM</text>
+      <text x="720" y="45" fill="#94a3b8" font-size="9" text-anchor="middle">원가요소 (7건)</text>
+
+      <!-- Layer B boxes -->
+      <rect x="10" y="120" width="180" height="60" rx="8" fill="#1e2a4f" stroke="#818cf8" stroke-width="1.5"/>
+      <text x="100" y="143" fill="#818cf8" font-size="11" font-weight="bold" text-anchor="middle">SNP_ALLOC_RATE</text>
+      <text x="100" y="160" fill="#94a3b8" font-size="9" text-anchor="middle">배부율 스냅샷 (54건)</text>
+
+      <rect x="210" y="120" width="180" height="60" rx="8" fill="#1e2a4f" stroke="#818cf8" stroke-width="1.5"/>
+      <text x="300" y="143" fill="#818cf8" font-size="11" font-weight="bold" text-anchor="middle">SNP_ALLOC_RESULT</text>
+      <text x="300" y="160" fill="#94a3b8" font-size="9" text-anchor="middle">배부결과 (432건)</text>
+
+      <rect x="410" y="120" width="180" height="60" rx="8" fill="#1e2a4f" stroke="#818cf8" stroke-width="1.5"/>
+      <text x="500" y="143" fill="#818cf8" font-size="11" font-weight="bold" text-anchor="middle">SNP_COST_RESULT</text>
+      <text x="500" y="160" fill="#94a3b8" font-size="9" text-anchor="middle">원가결과 (480건)</text>
+
+      <rect x="610" y="120" width="180" height="60" rx="8" fill="#1e2a4f" stroke="#818cf8" stroke-width="1.5"/>
+      <text x="700" y="143" fill="#818cf8" font-size="11" font-weight="bold" text-anchor="middle">SNP_BOM</text>
+      <text x="700" y="160" fill="#94a3b8" font-size="9" text-anchor="middle">BOM 스냅샷 (84건)</text>
+
+      <!-- Layer C boxes -->
+      <rect x="10" y="240" width="240" height="60" rx="8" fill="#2a2a1e" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="130" y="263" fill="#fbbf24" font-size="11" font-weight="bold" text-anchor="middle">EVT_MES</text>
+      <text x="130" y="280" fill="#94a3b8" font-size="9" text-anchor="middle">MES 이벤트 - 장비 가동률/수율 (15건)</text>
+
+      <rect x="270" y="240" width="240" height="60" rx="8" fill="#2a2a1e" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="390" y="263" fill="#fbbf24" font-size="11" font-weight="bold" text-anchor="middle">EVT_PLM</text>
+      <text x="390" y="280" fill="#94a3b8" font-size="9" text-anchor="middle">PLM 이벤트 - BOM/스펙 변경 (3건)</text>
+
+      <rect x="530" y="240" width="260" height="60" rx="8" fill="#2a2a1e" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="660" y="263" fill="#fbbf24" font-size="11" font-weight="bold" text-anchor="middle">EVT_PURCHASE</text>
+      <text x="660" y="280" fill="#94a3b8" font-size="9" text-anchor="middle">구매 이벤트 - 자재 단가 변동 (3건)</text>
+
+      <!-- Layer D box -->
+      <rect x="200" y="360" width="400" height="60" rx="8" fill="#1a2e1e" stroke="#34d399" stroke-width="2"/>
+      <text x="400" y="383" fill="#34d399" font-size="13" font-weight="bold" text-anchor="middle">CAL_VARIANCE</text>
+      <text x="400" y="400" fill="#94a3b8" font-size="10" text-anchor="middle">차이 계산 결과 (272건) &mdash; Python 엔진 생성</text>
+
+      <!-- Arrows -->
+      <defs><marker id="arrowhead" markerWidth="6" markerHeight="4" refX="6" refY="2" orient="auto"><polygon points="0 0, 6 2, 0 4" fill="#475569"/></marker></defs>
+      <!-- A → B -->
+      <line x1="80" y1="60" x2="100" y2="120" stroke="#475569" stroke-width="1" marker-end="url(#arrowhead)"/>
+      <line x1="240" y1="60" x2="300" y2="120" stroke="#475569" stroke-width="1" marker-end="url(#arrowhead)"/>
+      <line x1="560" y1="60" x2="700" y2="120" stroke="#475569" stroke-width="1" marker-end="url(#arrowhead)"/>
+      <line x1="720" y1="60" x2="500" y2="120" stroke="#475569" stroke-width="1" marker-end="url(#arrowhead)"/>
+      <!-- B → D -->
+      <line x1="100" y1="180" x2="350" y2="360" stroke="#475569" stroke-width="1" marker-end="url(#arrowhead)"/>
+      <line x1="300" y1="180" x2="380" y2="360" stroke="#475569" stroke-width="1" marker-end="url(#arrowhead)"/>
+      <line x1="700" y1="180" x2="450" y2="360" stroke="#475569" stroke-width="1" marker-end="url(#arrowhead)"/>
+      <!-- C → D -->
+      <line x1="130" y1="300" x2="320" y2="360" stroke="#fbbf24" stroke-width="1" stroke-dasharray="4" marker-end="url(#arrowhead)"/>
+      <line x1="390" y1="300" x2="400" y2="360" stroke="#fbbf24" stroke-width="1" stroke-dasharray="4" marker-end="url(#arrowhead)"/>
+      <line x1="660" y1="300" x2="480" y2="360" stroke="#fbbf24" stroke-width="1" stroke-dasharray="4" marker-end="url(#arrowhead)"/>
+
+      <!-- Layer labels -->
+      <text x="4" y="78" fill="#38bdf8" font-size="10" font-weight="bold" transform="rotate(-90,4,78)">Layer A</text>
+      <text x="4" y="158" fill="#818cf8" font-size="10" font-weight="bold" transform="rotate(-90,4,158)">Layer B</text>
+      <text x="4" y="278" fill="#fbbf24" font-size="10" font-weight="bold" transform="rotate(-90,4,278)">Layer C</text>
+      <text x="170" y="398" fill="#34d399" font-size="10" font-weight="bold">Layer D</text>
+    </svg>
+  </div>
+</div>
+
+<!-- Footer -->
+<div style="text-align:center; padding:32px 0; border-top:1px solid var(--border); color:var(--text-dim); font-size:0.85rem;">
+  반도체 원가 증감 차이분석 시스템 &mdash; 프로토타입 데이터 보고서<br>
+  생성일시: 2026-02-08 &nbsp;|&nbsp; PostgreSQL: semicon_cost &nbsp;|&nbsp; 총 1,346건
+</div>
+
+</div>
+</body>
+</html>

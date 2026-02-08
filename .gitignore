@@ -1,0 +1,45 @@
+# ── Python ──
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# ── Node.js ──
+node_modules/
+frontend/dist/
+frontend/build/
+
+# ── IDE ──
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── 환경 설정 ──
+.env
+.env.local
+.env.*.local
+
+# ── 데이터베이스 ──
+backend/data/
+*.db
+*.sqlite3
+
+# ── 로그 ──
+*.log
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── 기타 ──
+*.bak
+*.tmp
