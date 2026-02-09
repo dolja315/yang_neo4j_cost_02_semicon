@@ -37,3 +37,6 @@ python-dateutil>=2.9.0
 
 # CORS
 python-multipart>=0.0.18
+
+# Async File I/O
+aiofiles>=23.2.0
