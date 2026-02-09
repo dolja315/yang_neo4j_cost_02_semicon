@@ -10,8 +10,12 @@
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.config import settings
 from app.db.database import init_db, close_db
@@ -58,14 +62,46 @@ app.include_router(chat_router, prefix="/api/chat", tags=["챗"])
 app.include_router(report_router, prefix="/api/report", tags=["보고서"])
 
 
-@app.get("/")
-async def root():
-    """헬스체크"""
-    return {
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "status": "running",
-    }
+# ── Frontend Static Files (Docker Deploy) ──
+# backend/app/main.py -> backend/static
+BASE_DIR = Path(__file__).resolve().parent.parent
+STATIC_DIR = BASE_DIR / "static"
+
+if STATIC_DIR.exists():
+    # 1) Mount assets (JS, CSS, etc.)
+    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
+
+    # 2) Root -> index.html
+    @app.get("/")
+    async def serve_index():
+        return FileResponse(STATIC_DIR / "index.html")
+
+    # 3) Catch-all for SPA (Client-Side Routing)
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """React App 또는 정적 파일 서빙"""
+        # API 경로는 여기서 처리하지 않음 (404)
+        if full_path.startswith("api"):
+            raise HTTPException(status_code=404, detail="API endpoint not found")
+
+        # 정적 파일 확인 (favicon.ico 등)
+        file_path = STATIC_DIR / full_path
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(file_path)
+
+        # 그 외 모든 경로는 index.html (SPA)
+        return FileResponse(STATIC_DIR / "index.html")
+
+else:
+    # 로컬 개발용 (Frontend 없음)
+    @app.get("/")
+    async def root():
+        """헬스체크"""
+        return {
+            "app": settings.APP_NAME,
+            "version": settings.APP_VERSION,
+            "status": "running",
+        }
 
 
 @app.get("/api/health")

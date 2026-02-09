@@ -1,0 +1,22 @@
+.git
+.gitignore
+.env
+.env.*
+*.md
+ui_figma/
+
+# Frontend
+frontend/node_modules
+frontend/dist
+frontend/.env
+frontend/.env.*
+frontend/coverage
+
+# Backend
+backend/venv
+backend/.venv
+backend/__pycache__
+backend/*.pyc
+backend/.pytest_cache
+backend/static
+backend/tests/__pycache__
