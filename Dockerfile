@@ -11,23 +11,15 @@ COPY frontend/ ./
 # Build output is usually in 'dist'
 RUN npm run build
 
-# ── Stage 2: Backend + Database ──
+# ── Stage 2: Backend ──
 FROM python:3.11-slim
 
-# Install system dependencies including PostgreSQL 15 and Supervisor
-# Using Debian Bookworm (default for python:3.11-slim)
+# Install runtime dependencies (e.g. libpq for postgres drivers)
+# We don't need the full postgres server, just the client libraries if needed by psycopg2/asyncpg
 RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg2 \
-    lsb-release \
-    curl \
-    && sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list' \
-    && wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - \
-    && apt-get update \
-    && apt-get install -y postgresql-15 postgresql-client-15 supervisor \
+    libpq-dev \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /var/lib/postgresql/15/main
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
@@ -37,27 +29,23 @@ COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy Backend Code
-COPY backend/ ./backend/
+# backend 폴더의 내용을 /app 아래로 복사하여 /app/app/main.py 구조가 되도록 함
+# 이렇게 해야 app.config 등을 import할 때 경로가 맞음
+COPY backend/ .
 
 # Copy Frontend Build to Static Directory
 # The build output from Vite is in 'dist'
-# We place it in 'backend/static' so FastAPI can serve it
-RUN mkdir -p backend/static
-COPY --from=frontend-builder /app/frontend/dist ./backend/static
-
-# Copy Configuration Scripts
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY start.sh /start.sh
-RUN chmod +x /start.sh
+# We place it in 'static' (relative to WORKDIR /app)
+RUN mkdir -p static
+COPY --from=frontend-builder /app/frontend/dist ./static
 
 # Environment Variables (Default)
-ENV POSTGRES_USER=postgres
-ENV POSTGRES_PASSWORD=postgres
-ENV POSTGRES_DB=semicon_cost
 ENV PORT=8080
 
 # Expose Port
 EXPOSE 8080
 
-# Start Service
-ENTRYPOINT ["/start.sh"]
+# Start Service directly with Uvicorn
+# WORKDIR가 /app 이고, 소스는 /app/app/main.py 에 위치함
+# Cloud Run의 $PORT 환경변수를 사용하기 위해 shell form 사용
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}

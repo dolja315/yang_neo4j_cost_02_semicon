@@ -76,22 +76,6 @@ if STATIC_DIR.exists():
     async def serve_index():
         return FileResponse(STATIC_DIR / "index.html")
 
-    # 3) Catch-all for SPA (Client-Side Routing)
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        """React App 또는 정적 파일 서빙"""
-        # API 경로는 여기서 처리하지 않음 (404)
-        if full_path.startswith("api"):
-            raise HTTPException(status_code=404, detail="API endpoint not found")
-
-        # 정적 파일 확인 (favicon.ico 등)
-        file_path = STATIC_DIR / full_path
-        if file_path.exists() and file_path.is_file():
-            return FileResponse(file_path)
-
-        # 그 외 모든 경로는 index.html (SPA)
-        return FileResponse(STATIC_DIR / "index.html")
-
 else:
     # 로컬 개발용 (Frontend 없음)
     @app.get("/")
@@ -112,3 +96,26 @@ async def health_check():
         "sqlite": "connected",
         "neo4j": "connected",
     }
+
+
+# ── SPA Fallback (Must be last) ──
+if STATIC_DIR.exists():
+    # 3) Catch-all for SPA (Client-Side Routing)
+    # 반드시 다른 API 라우트 정의 후에 위치해야 함
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """React App 또는 정적 파일 서빙"""
+        # API 경로는 여기서 처리하지 않음 (404)
+        if full_path.startswith("api"):
+            raise HTTPException(status_code=404, detail="API endpoint not found")
+
+        # 정적 파일 확인 (favicon.ico 등)
+        # 보안: Directory Traversal 방지
+        file_path = (STATIC_DIR / full_path).resolve()
+
+        # 파일이 존재하고, static 디렉토리 내부에 있는지 확인
+        if file_path.exists() and file_path.is_file() and str(file_path).startswith(str(STATIC_DIR.resolve())):
+            return FileResponse(file_path)
+
+        # 그 외 모든 경로는 index.html (SPA)
+        return FileResponse(STATIC_DIR / "index.html")
