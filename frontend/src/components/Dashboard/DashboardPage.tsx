@@ -13,6 +13,11 @@ import {
   Factory,
   Network,
   Layers,
+  FileText,
+  AlertTriangle,
+  Eye,
+  Target,
+  BarChart3,
 } from 'lucide-react'
 import { Badge } from '../ui/badge'
 import { Card, CardContent } from '../ui/card'
@@ -733,6 +738,285 @@ function OverviewView({
               />
             </RadarChart>
           </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* ═══════════ 경영진 보고서 ═══════════ */}
+      <ExecutiveReport
+        costBreakdown={costBreakdown}
+        currTotal={currTotal}
+        prevTotal={prevTotal}
+        diffTotal={diffTotal}
+        diffRate={diffRate}
+      />
+    </motion.div>
+  )
+}
+
+/* ═══════════ 경영진 보고서 컴포넌트 ═══════════ */
+function ExecutiveReport({
+  costBreakdown,
+  currTotal,
+  prevTotal,
+  diffTotal,
+  diffRate,
+}: {
+  costBreakdown: CostBreakdownItem[]
+  currTotal: string
+  prevTotal: string
+  diffTotal: string
+  diffRate: string
+}) {
+  const sortedByChange = [...costBreakdown].sort((a, b) => b.change - a.change)
+  const topIncreases = sortedByChange.filter(item => item.change > 0)
+  const totalChange = costBreakdown.reduce((sum, item) => sum + item.change, 0)
+
+  // 가장 큰 증가 항목
+  const largest = sortedByChange[0]
+  const largestRate = largest ? ((largest.change / (largest.amount - largest.change)) * 100).toFixed(1) : '0'
+
+  // 두번째로 큰 증가 항목
+  const secondLargest = sortedByChange[1]
+  const secondRate = secondLargest ? ((secondLargest.change / (secondLargest.amount - secondLargest.change)) * 100).toFixed(1) : '0'
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.2 }}
+    >
+      <Card className="shadow-xl border-slate-200 overflow-hidden">
+        {/* 보고서 헤더 */}
+        <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-white/10 rounded-xl">
+                <FileText className="w-7 h-7 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">경영진 원가차이 분석 보고서</h3>
+                <p className="text-slate-300 text-sm mt-1">2025년 1월 실적 vs 2024년 12월 기준 · 반도체 제조원가 월간 분석</p>
+              </div>
+            </div>
+            <Badge className="bg-white/15 text-white border-0 px-4 py-2 text-sm">
+              Monthly Report
+            </Badge>
+          </div>
+        </div>
+
+        <CardContent className="p-8">
+          {/* 1. 총괄 요약 */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <BarChart3 className="w-5 h-5 text-blue-700" />
+              </div>
+              <h4 className="text-lg font-bold text-slate-900">1. 총괄 요약</h4>
+            </div>
+            <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-6">
+              <p className="text-slate-700 leading-relaxed text-[15px]">
+                2025년 1월 총 제조원가는 <strong className="text-blue-700">{currTotal}억원</strong>으로,
+                전월({prevTotal}억원) 대비 <strong className="text-red-600">{diffTotal}억원({diffRate}%)</strong> 증가하였습니다.
+                전 원가요소에서 골고루 증가세를 보이고 있으며, 특히
+                <strong className="text-slate-900"> {largest?.category}</strong>({largest?.change > 0 ? '+' : ''}{largest?.change}억, +{largestRate}%)와
+                <strong className="text-slate-900"> {secondLargest?.category}</strong>({secondLargest?.change > 0 ? '+' : ''}{secondLargest?.change}억, +{secondRate}%)가
+                전체 증가분의 <strong className="text-slate-900">{totalChange > 0 ? ((((largest?.change || 0) + (secondLargest?.change || 0)) / totalChange) * 100).toFixed(0) : 0}%</strong>를
+                차지하며 핵심 비용 상승 요인으로 작용하였습니다.
+              </p>
+            </div>
+          </div>
+
+          {/* 2. 원가요소별 차이 분석 */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Target className="w-5 h-5 text-purple-700" />
+              </div>
+              <h4 className="text-lg font-bold text-slate-900">2. 원가요소별 차이 분석</h4>
+            </div>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden">
+              {/* 테이블 헤더 */}
+              <div className="grid grid-cols-5 gap-4 px-6 py-3 bg-slate-100 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                <div>원가요소</div>
+                <div className="text-right">당월 금액</div>
+                <div className="text-right">전월 대비 증감</div>
+                <div className="text-right">비중</div>
+                <div>주요 원인</div>
+              </div>
+              {sortedByChange.map((item, idx) => (
+                <div key={item.category} className={`grid grid-cols-5 gap-4 px-6 py-3.5 items-center ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} border-t border-slate-100`}>
+                  <div className="font-semibold text-slate-800 flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_COLORS[costBreakdown.indexOf(item)] }} />
+                    {item.category}
+                  </div>
+                  <div className="text-right font-semibold text-slate-700">{item.amount}억</div>
+                  <div className={`text-right font-bold ${item.change > 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                    {item.change > 0 ? '+' : ''}{item.change}억
+                  </div>
+                  <div className="text-right text-slate-600">{item.percent}%</div>
+                  <div className="text-xs text-slate-500">
+                    {item.subAccounts.slice(0, 2).map(sa => sa.details[0]).filter(Boolean).join(', ')}
+                  </div>
+                </div>
+              ))}
+              <div className="grid grid-cols-5 gap-4 px-6 py-3.5 bg-slate-800 text-white font-bold">
+                <div>합계</div>
+                <div className="text-right">{currTotal}억</div>
+                <div className="text-right text-red-300">{diffTotal}억</div>
+                <div className="text-right">100%</div>
+                <div></div>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. 주요 특이사항 */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-amber-100 rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-amber-700" />
+              </div>
+              <h4 className="text-lg font-bold text-slate-900">3. 주요 특이사항</h4>
+            </div>
+            <div className="space-y-3">
+              <div className="flex gap-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+                <div className="flex-shrink-0 w-8 h-8 bg-red-200 rounded-full flex items-center justify-center text-red-700 font-bold text-sm">1</div>
+                <div>
+                  <div className="font-semibold text-red-900 mb-1">EUV 장비 투입에 따른 감가상각비 급증</div>
+                  <p className="text-sm text-red-800/80 leading-relaxed">
+                    전공정 EUV 노광 장비 신규 투입으로 감가상각비가 전월 대비 <strong>+28.5억원</strong> 증가하였습니다.
+                    이는 전체 증가분의 <strong>{totalChange > 0 ? (((largest?.change || 0) / totalChange) * 100).toFixed(0) : 0}%</strong>를 차지하는
+                    최대 비용 상승 요인입니다. EUV 장비 1대당 연간 감가상각비가 약 200억원 수준으로, 향후 추가 투입 시 지속적인
+                    원가 압박이 예상됩니다.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 p-4 bg-orange-50 border border-orange-200 rounded-xl">
+                <div className="flex-shrink-0 w-8 h-8 bg-orange-200 rounded-full flex items-center justify-center text-orange-700 font-bold text-sm">2</div>
+                <div>
+                  <div className="font-semibold text-orange-900 mb-1">CMP 슬러리 등 핵심 소재 단가 상승</div>
+                  <p className="text-sm text-orange-800/80 leading-relaxed">
+                    재료비가 <strong>+16.2억원</strong> 증가한 가운데, CMP 슬러리(+3.5억), 포토레지스트(+2.8억), 에칭 가스(+1.2억) 등
+                    핵심 공정 소재의 단가 상승이 주요 원인입니다. 글로벌 공급망 이슈와 고순도 소재 수요 증가가 배경입니다.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <div className="flex-shrink-0 w-8 h-8 bg-emerald-200 rounded-full flex items-center justify-center text-emerald-700 font-bold text-sm">3</div>
+                <div>
+                  <div className="font-semibold text-emerald-900 mb-1">테스트 공정 자동화 효과 가시화</div>
+                  <p className="text-sm text-emerald-800/80 leading-relaxed">
+                    테스트 공정에서 자동화 도입에 따른 인건비 절감(<strong>-4.0억원</strong>)과 테스트 보드 효율화(<strong>-1.0억원</strong>)로
+                    총 <strong>-5.2억원</strong>의 원가 절감을 달성하였습니다.
+                    이는 전사 자동화 투자의 ROI를 입증하는 긍정적 사례입니다.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                <div className="flex-shrink-0 w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center text-blue-700 font-bold text-sm">4</div>
+                <div>
+                  <div className="font-semibold text-blue-900 mb-1">HBM 제품군 원가 급증세 지속</div>
+                  <p className="text-sm text-blue-800/80 leading-relaxed">
+                    HBM 제품군이 6개월 연속 원가 상승 추이를 보이고 있습니다 (8월 480억 → 1월 585억, <strong>+21.9%</strong>).
+                    AI 서버용 HBM 수요 급증에 따른 생산량 확대와 고단 적층 공정의 복잡성 증가가 원가 상승을 견인하고 있습니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 4. 향후 전망 및 주의사항 */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-indigo-100 rounded-lg">
+                <Eye className="w-5 h-5 text-indigo-700" />
+              </div>
+              <h4 className="text-lg font-bold text-slate-900">4. 향후 전망 및 주의사항</h4>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6">
+              {/* 향후 전망 */}
+              <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-6">
+                <h5 className="font-bold text-indigo-900 mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4" />
+                  향후 전망
+                </h5>
+                <ul className="space-y-3">
+                  <li className="flex gap-3 text-sm text-indigo-800/80">
+                    <span className="flex-shrink-0 w-5 h-5 bg-indigo-200 rounded-full flex items-center justify-center text-indigo-700 text-xs font-bold">1</span>
+                    <span>2월에도 EUV 장비 추가 가동 예정으로 감가상각비 <strong>+15~20억원</strong> 추가 증가가 예상됩니다.</span>
+                  </li>
+                  <li className="flex gap-3 text-sm text-indigo-800/80">
+                    <span className="flex-shrink-0 w-5 h-5 bg-indigo-200 rounded-full flex items-center justify-center text-indigo-700 text-xs font-bold">2</span>
+                    <span>HBM3E 양산 본격화에 따라 후공정(조립/패키징) 원가가 <strong>Q1 대비 8~12%</strong> 상승할 전망입니다.</span>
+                  </li>
+                  <li className="flex gap-3 text-sm text-indigo-800/80">
+                    <span className="flex-shrink-0 w-5 h-5 bg-indigo-200 rounded-full flex items-center justify-center text-indigo-700 text-xs font-bold">3</span>
+                    <span>웨이퍼 단가 하락세 지속으로 재료비 일부 상쇄 효과가 기대되며, 전체 원가 증가율은 <strong>2.5~3.5%</strong> 수준을 유지할 것으로 전망됩니다.</span>
+                  </li>
+                  <li className="flex gap-3 text-sm text-indigo-800/80">
+                    <span className="flex-shrink-0 w-5 h-5 bg-indigo-200 rounded-full flex items-center justify-center text-indigo-700 text-xs font-bold">4</span>
+                    <span>PC DRAM, NAND 등 레거시 제품군은 원가 감소 추세가 이어져, 제품 포트폴리오 믹스 효과로 전체 수익성에 긍정적으로 작용할 전망입니다.</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* 주의 깊게 봐야 할 사항 */}
+              <div className="bg-gradient-to-br from-red-50 to-orange-50 border border-red-200 rounded-xl p-6">
+                <h5 className="font-bold text-red-900 mb-4 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  주의 깊게 봐야 할 사항
+                </h5>
+                <ul className="space-y-3">
+                  <li className="flex gap-3 text-sm text-red-800/80">
+                    <span className="flex-shrink-0 w-5 h-5 bg-red-200 rounded-full flex items-center justify-center text-red-700 text-xs font-bold">!</span>
+                    <span><strong>감가상각비 비중 37.8%:</strong> 전체 원가의 40%에 육박하는 수준으로, 대규모 설비 투자에 따른 고정비 부담이 가중되고 있습니다. 가동률 관리가 핵심입니다.</span>
+                  </li>
+                  <li className="flex gap-3 text-sm text-red-800/80">
+                    <span className="flex-shrink-0 w-5 h-5 bg-red-200 rounded-full flex items-center justify-center text-red-700 text-xs font-bold">!</span>
+                    <span><strong>핵심 소재 공급 리스크:</strong> CMP 슬러리, 포토레지스트 등 일본 의존도가 높은 소재의 단가 상승이 지속되고 있어 대체 공급처 확보가 시급합니다.</span>
+                  </li>
+                  <li className="flex gap-3 text-sm text-red-800/80">
+                    <span className="flex-shrink-0 w-5 h-5 bg-red-200 rounded-full flex items-center justify-center text-red-700 text-xs font-bold">!</span>
+                    <span><strong>전력비 구조적 증가:</strong> EUV 장비의 전력 소모가 기존 ArF 대비 10배 이상으로, 첨단 공정 비중 확대 시 전력비 급증이 불가피합니다.</span>
+                  </li>
+                  <li className="flex gap-3 text-sm text-red-800/80">
+                    <span className="flex-shrink-0 w-5 h-5 bg-red-200 rounded-full flex items-center justify-center text-red-700 text-xs font-bold">!</span>
+                    <span><strong>인건비 안정화 필요:</strong> 반도체 업계 인력난으로 숙련공 확보 경쟁이 심화되고 있어, 인건비 증가 추세가 향후 가속화될 수 있습니다.</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* 5. 종합 의견 */}
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-slate-200 rounded-lg">
+                <FileText className="w-5 h-5 text-slate-700" />
+              </div>
+              <h4 className="text-lg font-bold text-slate-900">5. 종합 의견</h4>
+            </div>
+            <div className="bg-gradient-to-br from-slate-50 to-slate-100 border-2 border-slate-200 rounded-xl p-6">
+              <p className="text-slate-700 leading-relaxed text-[15px] mb-4">
+                금월 원가 증가(+{diffTotal}억, {diffRate}%)는 <strong>EUV 등 첨단 장비 투자에 따른 구조적 비용 증가</strong>가
+                주된 원인으로, 단기적 비용 억제보다는 <strong>장기적 기술 경쟁력 확보 관점</strong>에서의 전략적 판단이 필요합니다.
+              </p>
+              <p className="text-slate-700 leading-relaxed text-[15px] mb-4">
+                다만, 감가상각비가 전체의 37.8%에 달하는 상황에서 <strong>설비 가동률 극대화</strong>와 <strong>제품 믹스 최적화</strong>를 통해
+                단위당 원가를 관리하는 것이 수익성 확보의 핵심입니다. 테스트 공정의 자동화 성과(-5.2억)를 벤치마킹하여
+                타 공정으로의 자동화 확산도 적극 검토할 것을 권고합니다.
+              </p>
+              <div className="flex items-center gap-6 pt-4 border-t border-slate-200 mt-4 text-xs text-slate-500">
+                <span>작성: 원가관리팀</span>
+                <span>기준일: 2025년 1월</span>
+                <span>분석 기간: 2024.08 ~ 2025.01 (6개월)</span>
+                <span>데이터 출처: Neo4j 원가 그래프DB · MES · SAP ERP</span>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </motion.div>
